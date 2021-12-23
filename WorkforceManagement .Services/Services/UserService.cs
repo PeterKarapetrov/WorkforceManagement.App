@@ -26,15 +26,23 @@ namespace WorkforceManagement.Services.Services
             _userManager = userManager;
         }
 
-        public async Task<bool> AssignUserAsAdmin(string username)
+        public async Task<bool> AssignUserAsAdminAsync(string username)
         {
             User user = await _userManager.FindByNameAsync(username);
+
             if (user == null)
             {
                 return false;
             }
-            await _userManager.AddToRoleAsync(user, GlobalConstants.AdministratorRoleName);
-            return true;
+
+            var result = await _userManager.AddToRoleAsync(user, GlobalConstants.AdministratorRoleName);
+
+            if (result.Succeeded)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         // ToDo Add check for team by providet Id if any
@@ -74,34 +82,40 @@ namespace WorkforceManagement.Services.Services
             return null;
         }
 
-        public async Task<bool> DeleteUserAsync(string userId)
+        public async Task<UserResponse> DeleteUserAsync(string userId)
         {
-            User user = await _applicationDbContext.Users.FindAsync(userId);
+            User userToDelete = await _applicationDbContext.Users.FindAsync(userId);
 
-            if (user == null)
+            if (userToDelete == null)
             {
-                return false;
+                return null;
             }
 
-            user.IsDeleted = true;
-            user.DeletedOn = DateTime.UtcNow;
+            userToDelete.IsDeleted = true;
+            userToDelete.DeletedOn = DateTime.UtcNow;
+
             await _applicationDbContext.SaveChangesAsync();
 
-            return true;
+            return new UserResponse 
+            {
+                Id  = userToDelete.Id,
+                Username = userToDelete.UserName,
+                Email = userToDelete.Email 
+            };
         }
 
-        public async Task<List<UserResponse>> GetAllAsync()
+        public async Task<ICollection<UserResponse>> GetAllAsync()
         {
-            List<UserResponse> result = await _applicationDbContext.Users
+            ICollection<UserResponse> usersList = await _applicationDbContext.Users
                 .Select(u => new UserResponse
                 {
                     Id = u.Id,
                     Username = u.UserName,
                     Email = u.Email
-                }).ToListAsync();
+                })
+                .ToListAsync();
 
-            return result;
-
+            return usersList;
         }
 
         public Task<User> GetCurrentUserAsync(ClaimsPrincipal user)
@@ -114,9 +128,10 @@ namespace WorkforceManagement.Services.Services
             return await _userManager.FindByIdAsync(requesterUserId);
         }
 
-        public async Task<UserResponse> UpdateUserAsync(UserUpdateRequest inputDto)
+        public async Task<UserResponse> UpdateUserAsync(string id, UserUpdateRequest inputDto)
         {
-            User user = await _applicationDbContext.Users.FindAsync(inputDto.UserId);
+            User user = await _applicationDbContext.Users.FindAsync(id);
+
             if (user == null)
             {
                 return null;
@@ -125,25 +140,31 @@ namespace WorkforceManagement.Services.Services
             if (inputDto.TeamId != 0)
             {
                 Team team = await _applicationDbContext.Teams.FindAsync(inputDto.TeamId);
+
                 if (team == null)
                 {
                     return null;
                 }
+
                 user.Teams.Add(team);
             }
 
             user.UserName = inputDto.Username;
             user.Email = inputDto.Email;
 
-            await _userManager.UpdateAsync(user);
+            var result = await _userManager.UpdateAsync(user);
 
-            UserResponse result = new UserResponse
+            if (result.Succeeded)
             {
-                Id = user.Id,
-                Username = user.UserName,
-                Email = user.Email
-            };
-            return result;
+                return new UserResponse
+                {
+                    Id = user.Id,
+                    Username = user.UserName,
+                    Email = user.Email
+                };
+            }
+
+            return null;
         }
 
         public async Task<bool> UserIsAdmin(User user)

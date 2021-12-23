@@ -11,15 +11,15 @@ namespace WorkforceManagement.Services.Contracts
     {
         Task<UserResponse> CreateUserAsync(UserCreateRequest inputDto);
 
-        Task<UserResponse> UpdateUserAsync(UserUpdateRequest inputDto);
+        Task<UserResponse> UpdateUserAsync(string id, UserUpdateRequest inputDto);
 
-        Task<bool> DeleteUserAsync(string userId);
+        Task<UserResponse> DeleteUserAsync(string userId);
 
-        Task<List<UserResponse>> GetAllAsync();
+        Task<ICollection<UserResponse>> GetAllAsync();
 
         Task<User> GetCurrentUserAsync(ClaimsPrincipal user);
 
-        Task<bool> AssignUserAsAdmin(string username);
+        Task<bool> AssignUserAsAdminAsync(string username);
 
         Task<User> GetUserById(string requesterUserId);
 

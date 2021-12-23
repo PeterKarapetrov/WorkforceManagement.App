@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using WorkforceManagement.Common;
 using WorkforceManagement.Models.DTO.Request.User;
@@ -34,11 +35,15 @@ namespace WorkforceManagement.WebApi.Controllers
             return BadRequest();
         }
 
-        [HttpPut]
-        [Route("assign-admin")]
-        public async Task<IActionResult> AssignUserAsAdmin(string username)
+        [HttpPut("assign-admin/{username}")]
+        public async Task<IActionResult> Put(string username)
         {
-            var result = await _userService.AssignUserAsAdmin(username);
+            if (!CoreValidator.isValid(username))
+            {
+                return BadRequest("Invalid username!");
+            }
+            var result = await _userService.AssignUserAsAdminAsync(username);
+
             if (result)
             {
                 return Ok();
@@ -48,33 +53,52 @@ namespace WorkforceManagement.WebApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<List<UserResponse>>> Get()
+        public async Task<ActionResult<ICollection<UserResponse>>> Get()
         {
-            List<UserResponse> result = await _userService.GetAllAsync();
-            return result;
+            ICollection<UserResponse> usersList = await _userService.GetAllAsync();
+
+            if (usersList.Count() > 0)
+            {
+                return usersList.ToArray();
+            }
+
+            return NotFound();
         }
 
-        [HttpPut]
-        public async Task<IActionResult> UpdateUser(UserUpdateRequest inputModel)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Put(string id, UserUpdateRequest inputModel)
         {
-            UserResponse result = await _userService.UpdateUserAsync(inputModel);
-            if (result != null)
+            if (!CoreValidator.isValid(id))
             {
-                return StatusCode(204, result);
+                return BadRequest("Invalid Id");
             }
-            return BadRequest();
+
+            UserResponse userUpdated = await _userService.UpdateUserAsync(id, inputModel);
+
+            if (userUpdated != null)
+            {
+                return Ok("User update succeed!");
+            }
+
+            return BadRequest("Update Failed!");
         }
 
-        [HttpDelete]
-        [Route("delete/{id}")]
-        public async Task<IActionResult> DeleteUser(string id)
+        [HttpDelete("{id}")]
+        public async Task<ActionResult<UserResponse>> DeleteUser(string id)
         {
-            bool result = await _userService.DeleteUserAsync(id);
-            if (result)
+            if (!CoreValidator.isValid(id))
             {
-                return Ok();
+                return BadRequest("Deletion Failed!");
             }
-            return BadRequest();
+            
+            var userDeleted = await _userService.DeleteUserAsync(id);
+
+            if (userDeleted != null)
+            {
+                return userDeleted;
+            }
+
+            return BadRequest("Deletion Failed!");
         }
     }
 }

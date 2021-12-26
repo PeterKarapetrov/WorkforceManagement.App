@@ -11,7 +11,7 @@ using WorkforceManagement.Services.Contracts;
 namespace WorkforceManagement.WebApi.Controllers
 {
     [ApiController]
-    //[Authorize(Roles = GlobalConstants.AdministratorRoleName)]
+    [Authorize(Roles = GlobalConstants.AdministratorRoleName)]
     [Route("api/[controller]")]
     public class UsersController : ControllerBase
     {

@@ -17,5 +17,10 @@
         //Team member actions
         public const string AddMemberToTeam = "AddMember";
         public const string RemoveMemberFromTeam = "RemoveMember";
+
+        //Days vacation
+        public const int PaidOffDays = 20;
+        public const int SickDays = 40;
+        public const int UnpaidDays = 90;
     }
 }

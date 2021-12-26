@@ -17,25 +17,8 @@ namespace WorkforceManagement.Services.Contracts
 
         Task<TimeOffRequestResponseDTO> GetTimeOffRequest(int timeOffRequestId, User currentUser);
 
-        Task<bool> DeleteTimeOffRequest(int timeOffRequestId, User currentUser);
+        Task<TimeOffRequestResponseDTO> DeleteTimeOffRequest(int timeOffRequestId, User currentUser);
 
-        bool SendMailToAllAprovers(User sender, TimeOffRequest timeOffRequest);
-
-        Task<bool> SendMailToAllTeamMates(User requester, TimeOffRequest newRequest);
-
-        Task<bool> CurrentUserHasAuthorization(User requester, User currentUser);
-
-        TimeOffRequest CreateNewTimeOffRequest(TimeOffRequestRequestDTO timeOffRequestRequestDTO, RequestType requestType, User requester);
-
-        Task<bool> TeamLeadIsOutOfOffice(User teamLead, TimeOffRequest newTimeOffRequest);
-
-        Approval CreateNewApproval(User teamLead);
-
-        void SetTimeOffRequestStatus(TimeOffRequest newTimeOffRequest);
-
-        HashSet<User> GetRequesterTeamLeads(User requester);
-
-        bool SendMailRange(User sender, ICollection<User> receivers, TimeOffRequest timeOffRequest);
         Task SumOldWithNewPaidDaysOff();
     }
 }

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,7 +12,7 @@ using WorkforceManagement.Services.Interfaces;
 namespace WorkforceManagement.WebApi.Controllers
 {
     [ApiController]
-   // [Authorize(Roles = GlobalConstants.AdministratorRoleName)]
+    [Authorize(Roles = GlobalConstants.AdministratorRoleName)]
     [Route("api/[controller]")]
 
     public class TeamsController : ControllerBase

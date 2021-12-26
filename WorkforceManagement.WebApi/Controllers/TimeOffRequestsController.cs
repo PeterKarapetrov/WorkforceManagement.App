@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
+using WorkforceManagement.Common;
 using WorkforceManagement.Data.Entities;
 using WorkforceManagement.Models.DTO.Request;
 using WorkforceManagement.Models.DTO.Response;
@@ -28,31 +29,46 @@ namespace WorkforceManagement.WebApi.Controllers
 
         // POST api/<TimeOffRequestsController>
         [HttpPost]
-        public async Task<IActionResult> CreateTimeOffRequest(TimeOffRequestRequestDTO timeOffRequestRequestDTO)
+        public async Task<ActionResult<TimeOffRequestResponseDTO>> Post(TimeOffRequestRequestDTO timeOffRequestRequestDTO)
         {
             User currentUser = await _userService.GetCurrentUserAsync(this.User);
 
-            TimeOffRequestResponseDTO result = await _timeOffRequestService.CreateTimeOffRequest(timeOffRequestRequestDTO, currentUser);
-
-            if (result != null)
+            if (currentUser == null)
             {
-                return StatusCode(201, result);
+                return BadRequest();
             }
 
-            return BadRequest("TimeOffRequest Submit Failed!");
+            TimeOffRequestResponseDTO timeOffRequest = await _timeOffRequestService.CreateTimeOffRequest(timeOffRequestRequestDTO, currentUser);
+
+            if (timeOffRequest != null)
+            {
+                return CreatedAtAction("Get", new { id = timeOffRequest.TimeOffRequestId}, timeOffRequest);
+            }
+
+            return BadRequest("TimeOffRequest Create Failed!");
         }
 
         // PUT api/<TimeOffRequestsController>/5
         [HttpPut("{timeOffRequestId}")]
-        public async Task<IActionResult> UpdateTimeOffRequest(int timeOffRequestId, TimeOffRequestRequestDTO timeOffRequestRequestDT)
+        public async Task<ActionResult<TimeOffRequestResponseDTO>> Put(int timeOffRequestId, TimeOffRequestRequestDTO timeOffRequestRequestDT)
         {
+            if (!CoreValidator.IsValid(timeOffRequestId))
+            {
+                return BadRequest("Invalid Id");
+            }
+
             User currentUser = await _userService.GetCurrentUserAsync(this.User);
 
-            TimeOffRequestResponseDTO result = await _timeOffRequestService.UpdateTimeOffRequest(timeOffRequestId, timeOffRequestRequestDT, currentUser);
-
-            if (result != null)
+            if (currentUser == null)
             {
-                return StatusCode(200, result);
+                return BadRequest("Update Failed!");
+            }
+
+            TimeOffRequestResponseDTO timeOffRequest = await _timeOffRequestService.UpdateTimeOffRequest(timeOffRequestId, timeOffRequestRequestDT, currentUser);
+
+            if (timeOffRequest != null)
+            {
+                return Ok();
             }
 
             return BadRequest("TimeOffRequest Update Failed!");
@@ -61,15 +77,25 @@ namespace WorkforceManagement.WebApi.Controllers
         // PUT api/<TimeOffRequestsController>/5
         [HttpPut("ApproveRequest/{timeOffRequestApprovalId}/{isApproved}")]
         [ActionName("ApproveRequest")]
-        public async Task<IActionResult> ApproveRequest(int timeOffRequestApprovalId, bool isApproved)
+        public async Task<ActionResult<TimeOffRequestResponseDTO>> Put(int timeOffRequestApprovalId, bool isApproved)
         {
+            if (!CoreValidator.IsValid(timeOffRequestApprovalId))
+            {
+                return BadRequest("Invalid Id");
+            }
+
             User currentUser = await _userService.GetCurrentUserAsync(this.User);
 
-            TimeOffRequestResponseDTO result = await _timeOffRequestService.ApproveTimeOffRequest(timeOffRequestApprovalId, currentUser, isApproved);
-
-            if (result != null)
+            if (currentUser == null)
             {
-                return StatusCode(200, result);
+                return BadRequest("Update Failed!");
+            }
+
+            TimeOffRequestResponseDTO timeOffRequest = await _timeOffRequestService.ApproveTimeOffRequest(timeOffRequestApprovalId, currentUser, isApproved);
+
+            if (timeOffRequest != null)
+            {
+                return Ok();
             }
 
             return BadRequest("TimeOffRequest Update Failed!");
@@ -77,13 +103,25 @@ namespace WorkforceManagement.WebApi.Controllers
 
         // DELETE api/<TimeOffRequestsController>/5
         [HttpDelete("{timeOffRequestId}")]
-        public async Task<IActionResult> DeleteTimeOffRequest(int timeOffRequestId)
+        public async Task<ActionResult<TimeOffRequestResponseDTO>> Delete(int timeOffRequestId)
         {
+            if (!CoreValidator.IsValid(timeOffRequestId))
+            {
+                return BadRequest("Invalid Id");
+            }
+
             User currentUser = await _userService.GetCurrentUserAsync(this.User);
 
-            if (await _timeOffRequestService.DeleteTimeOffRequest(timeOffRequestId, currentUser))
+            if (currentUser == null)
             {
-                return Ok("TimeOffRequest Delete Succeeded!");
+                return BadRequest("TimeOffRequest Delete Failed!");
+            }
+
+            TimeOffRequestResponseDTO timeOffRequestResponse = await _timeOffRequestService.DeleteTimeOffRequest(timeOffRequestId, currentUser);
+
+            if (timeOffRequestResponse != null)
+            {
+                return timeOffRequestResponse;
             }
 
             return BadRequest("TimeOffRequest Delete Failed!");
@@ -91,18 +129,28 @@ namespace WorkforceManagement.WebApi.Controllers
 
         // GET api/<TimeOffRequestsController>/5
         [HttpGet("{timeOffRequestId}")]
-        public async Task<IActionResult> Get(int timeOffRequestId)
+        public async Task<ActionResult<TimeOffRequestResponseDTO>> Get(int timeOffRequestId)
         {
-            User currentUser = await _userService.GetCurrentUserAsync(this.User);
-
-            TimeOffRequestResponseDTO result = await _timeOffRequestService.GetTimeOffRequest(timeOffRequestId, currentUser);
-
-            if (result != null)
+            if (!CoreValidator.IsValid(timeOffRequestId))
             {
-                return StatusCode(200, result);
+                return BadRequest("Invalid Id");
             }
 
-            return BadRequest();
+            User currentUser = await _userService.GetCurrentUserAsync(this.User);
+
+            if (currentUser == null)
+            {
+                return NotFound();
+            }
+
+            TimeOffRequestResponseDTO timeOffRequest = await _timeOffRequestService.GetTimeOffRequest(timeOffRequestId, currentUser);
+
+            if (timeOffRequest != null)
+            {
+                return timeOffRequest;
+            }
+
+            return NotFound();
         }
     }
 }

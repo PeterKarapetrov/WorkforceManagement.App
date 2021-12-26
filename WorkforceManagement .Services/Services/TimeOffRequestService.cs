@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using WorkforceManagement.Common;
 using WorkforceManagement.Data.Database;
 using WorkforceManagement.Data.Entities;
 using WorkforceManagement.Data.Entities.Enums;
@@ -33,7 +34,13 @@ namespace WorkforceManagement.Services.Services
         public async Task<TimeOffRequestResponseDTO> CreateTimeOffRequest(TimeOffRequestRequestDTO timeOffRequestRequestDTO, User currentUser)
         {
             User requester = await _userService.GetUserById(timeOffRequestRequestDTO.RequesterUserId);
+
             if (requester == null)
+            {
+                return null;
+            }
+
+            if (currentUser == null)
             {
                 return null;
             }
@@ -102,13 +109,13 @@ namespace WorkforceManagement.Services.Services
         }
 
         // ToDo delete all aproves aswell
-        public async Task<bool> DeleteTimeOffRequest(int timeOffRequestId, User currentUser)
+        public async Task<TimeOffRequestResponseDTO> DeleteTimeOffRequest(int timeOffRequestId, User currentUser)
         {
             var timeOffRequestToDelete = await _context.TimeOffRequests.FirstOrDefaultAsync(tor => tor.Id == timeOffRequestId);
 
             if (timeOffRequestToDelete == null)
             {
-                return false;
+                return null;
             }
 
             if (await CurrentUserHasAuthorization(timeOffRequestToDelete.Requester, currentUser))
@@ -116,10 +123,10 @@ namespace WorkforceManagement.Services.Services
                 timeOffRequestToDelete.IsDeleted = true;
                 timeOffRequestToDelete.DeletedOn = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
-                return true;
+                return TimeOffRequestMapper.MapTimeOffRequest(timeOffRequestToDelete);
             }
 
-            return false;
+            return null;
         }
 
         public async Task<TimeOffRequestResponseDTO> GetTimeOffRequest(int timeOffRequestId, User currentUser)
@@ -194,17 +201,18 @@ namespace WorkforceManagement.Services.Services
             if (timeOffRequest == null)
             {
                 return null;
+
+                // If it is already rejected
+            }
+
+            if (timeOffRequest.Status == RequestStatus.Rejected)
+            {
+                return null;
             }
 
             var approval = timeOffRequest.Approvals.FirstOrDefault(a => a.Approver == currentUser);
 
             if (approval == null)
-            {
-                return null;
-            }
-
-            // If it is already rejected
-            if (approval.TimeOffRequest.Status == RequestStatus.Rejected)
             {
                 return null;
             }
@@ -221,7 +229,6 @@ namespace WorkforceManagement.Services.Services
                 if (approval.TimeOffRequest.Approvals.All(a => a.IsApproved == true))
                 {
                     approval.TimeOffRequest.Status = RequestStatus.Approved;
-                    _mailService.SendEmail(approval.TimeOffRequest.Requester, approval.TimeOffRequest.Requester.Email, approval.TimeOffRequest);
                 }
                 else if (approval.TimeOffRequest.Status == RequestStatus.Created && approval.TimeOffRequest.Approvals.Count > 1)
                 {
@@ -242,10 +249,24 @@ namespace WorkforceManagement.Services.Services
             _context.TimeOffRequests.Update(timeOffRequest);
             await _context.SaveChangesAsync();
 
-            return TimeOffRequestMapper.MapTimeOffRequest(approval.TimeOffRequest);
+            return TimeOffRequestMapper.MapTimeOffRequest(timeOffRequest);
         }
 
-        public bool SendMailRange(User sender, ICollection<User> receivers, TimeOffRequest timeOffRequest)
+        public async Task SumOldWithNewPaidDaysOff()
+        {
+            var listUsers = await _context.Users.ToListAsync();
+
+            foreach (var user in listUsers)
+            {
+                user.PaidDaysOff += GlobalConstants.PaidOffDays;
+                user.SickDaysOff = GlobalConstants.SickDays;
+                user.UnpaidDaysOff = GlobalConstants.UnpaidDays;
+            }
+            _context.UpdateRange(listUsers);
+            await _context.SaveChangesAsync();
+        }
+
+        private bool SendMailRange(User sender, ICollection<User> receivers, TimeOffRequest timeOffRequest)
         {
             bool allEmailsSended = true;
             foreach (var receiver in receivers)
@@ -257,54 +278,9 @@ namespace WorkforceManagement.Services.Services
                 }
             }
             return allEmailsSended;
-        }
+        }      
 
-        [Obsolete]
-        public bool SendMailToAllAprovers(User sender, TimeOffRequest timeOffRequest)
-        {
-            foreach (var approval in timeOffRequest.Approvals)
-            {
-                bool isSendSuccesfully = _mailService.SendEmail(sender, approval.Approver.Email, approval.TimeOffRequest);
-                if (isSendSuccesfully == false)
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        [Obsolete]
-        public async Task<bool> SendMailToAllTeamMates(User requester, TimeOffRequest newRequest)
-        {
-            var requesterTeamMates = await GetAllTeamMates(requester);
-
-            foreach (var teamMate in requesterTeamMates)
-            {
-                bool isSendSuccesfully = _mailService.SendEmail(requester, teamMate.Email, newRequest);
-                if (isSendSuccesfully == false)
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        [Obsolete]
-        public bool SendEmailToRequester(User requester, TimeOffRequest timeOffRequest)
-        {
-            bool isSendSuccesfully = _mailService.SendEmail(requester, requester.Email, timeOffRequest);
-
-            if (isSendSuccesfully == false)
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        public async Task<HashSet<User>> GetAllTeamMates(User requester)
+        private async Task<HashSet<User>> GetAllTeamMates(User requester)
         {
             var requesterTeams = await _context.Teams
                 .Where(t => t.Members.Contains(requester)
@@ -326,7 +302,7 @@ namespace WorkforceManagement.Services.Services
             return requesterTeamMates;
         }
 
-        public async Task<bool> CurrentUserHasAuthorization(User requester, User currentUser)
+        private async Task<bool> CurrentUserHasAuthorization(User requester, User currentUser)
         {
             if (requester.Id == currentUser.Id || await _userService.UserIsAdmin(currentUser))
             {
@@ -336,7 +312,7 @@ namespace WorkforceManagement.Services.Services
             return false;
         }
 
-        public async Task<bool> TeamLeadIsOutOfOffice(User teamLead, TimeOffRequest newTimeOffRequest)
+        private async Task<bool> TeamLeadIsOutOfOffice(User teamLead, TimeOffRequest newTimeOffRequest)
         {
             var outOffOffice = await _context.TimeOffRequests
                 .Where(tor => tor.Requester == teamLead &&
@@ -355,7 +331,7 @@ namespace WorkforceManagement.Services.Services
             return false;
         }
 
-        public HashSet<User> GetRequesterTeamLeads(User requester)
+        private HashSet<User> GetRequesterTeamLeads(User requester)
         {
             var teamLeads = _context.Teams
                    .Where(t => t.Members.Contains(requester))
@@ -370,7 +346,7 @@ namespace WorkforceManagement.Services.Services
             return teamLeads;
         }
 
-        public TimeOffRequest CreateNewTimeOffRequest(TimeOffRequestRequestDTO timeOffRequestRequestDTO, RequestType requestType, User requester)
+        private TimeOffRequest CreateNewTimeOffRequest(TimeOffRequestRequestDTO timeOffRequestRequestDTO, RequestType requestType, User requester)
         {
             return new TimeOffRequest()
             {
@@ -380,11 +356,11 @@ namespace WorkforceManagement.Services.Services
                 StartDate = timeOffRequestRequestDTO.StartDate,
                 EndDate = timeOffRequestRequestDTO.EndDate,
                 Status = RequestStatus.Created,
-                Requester = requester
+                Requester = requester,
             };
         }
 
-        public void SetTimeOffRequestStatus(TimeOffRequest newTimeOffRequest)
+        private void SetTimeOffRequestStatus(TimeOffRequest newTimeOffRequest)
         {
             if (newTimeOffRequest.Approvals.All(a => a.IsApproved == true))
             {
@@ -396,7 +372,7 @@ namespace WorkforceManagement.Services.Services
             }
         }
 
-        public Approval CreateNewApproval(User teamLead)
+        private Approval CreateNewApproval(User teamLead)
         {
             var newApproval = new Approval();
             newApproval.Approver = teamLead;
@@ -493,21 +469,49 @@ namespace WorkforceManagement.Services.Services
             }
         }
 
-        public async Task SumOldWithNewPaidDaysOff()
+        [Obsolete]
+        public bool SendMailToAllAprovers(User sender, TimeOffRequest timeOffRequest)
         {
-            var listUsers = await _context.Users.ToListAsync();
-            var newPaidDaysOff = 20;
-            var sickDays = 40;
-            var unpaidDays = 90;
-
-            foreach (var user in listUsers)
+            foreach (var approval in timeOffRequest.Approvals)
             {
-                user.PaidDaysOff += newPaidDaysOff;
-                user.SickDaysOff = sickDays;
-                user.UnpaidDaysOff = unpaidDays;
+                bool isSendSuccesfully = _mailService.SendEmail(sender, approval.Approver.Email, approval.TimeOffRequest);
+                if (isSendSuccesfully == false)
+                {
+                    return false;
+                }
             }
-            _context.UpdateRange(listUsers);
-            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        [Obsolete]
+        public async Task<bool> SendMailToAllTeamMates(User requester, TimeOffRequest newRequest)
+        {
+            var requesterTeamMates = await GetAllTeamMates(requester);
+
+            foreach (var teamMate in requesterTeamMates)
+            {
+                bool isSendSuccesfully = _mailService.SendEmail(requester, teamMate.Email, newRequest);
+                if (isSendSuccesfully == false)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        [Obsolete]
+        public bool SendEmailToRequester(User requester, TimeOffRequest timeOffRequest)
+        {
+            bool isSendSuccesfully = _mailService.SendEmail(requester, requester.Email, timeOffRequest);
+
+            if (isSendSuccesfully == false)
+            {
+                return false;
+            }
+
+            return true;
         }
     }
 }
